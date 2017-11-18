@@ -1,6 +1,9 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices.ComTypes;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
 
 namespace TextToSpeech
 {
@@ -11,8 +14,12 @@ namespace TextToSpeech
             var voiceName = args.Length > 0 ? args[0] : null;
             if (voiceName == "-l")
             {
-                var voices = new SpeechLib.SpVoice().GetVoices();
-                for (var i = 0; i < voices.Count; i++) Console.WriteLine(voices.Item(i).GetAttribute("Name"));
+                var voices = new SpeechLib.SpVoice().GetVoices()
+                    .Cast<SpeechLib.ISpeechObjectToken>()
+                    .Select(token => new VoiceInfo(token))
+                    .ToArray();
+                new DataContractJsonSerializer(voices.GetType())
+                    .WriteObject(Console.OpenStandardOutput(), voices);
             }
             else
             {
@@ -98,6 +105,25 @@ namespace TextToSpeech
         public void Write(byte[] pv, int cb, IntPtr pcbWritten)
         {
             stream.Write(pv, 0, cb);
+        }
+    }
+
+    [DataContract]
+    class VoiceInfo
+    {
+        [DataMember] public string Gender;
+        [DataMember] public string Age;
+        [DataMember] public string Name;
+        [DataMember] public string Language;
+        [DataMember] public string Vendor;
+
+        public VoiceInfo(SpeechLib.ISpeechObjectToken token)
+        {
+            Gender = token.GetAttribute("Gender");
+            Age = token.GetAttribute("Age");
+            Name = token.GetAttribute("Name");
+            Language = token.GetAttribute("Language");
+            Vendor = token.GetAttribute("Vendor");
         }
     }
 }
