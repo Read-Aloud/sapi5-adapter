@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Speech.Synthesis;
+using System.Speech.AudioFormat;
 
 namespace TextToSpeech
 {
@@ -22,12 +23,13 @@ namespace TextToSpeech
             }
         }
 
-        static void Speak(string ssml, string voiceName, Stream outputStream)
+        static void Speak(string text, string voiceName, Stream outputStream)
         {
             var v = new SpeechSynthesizer();
             try { v.SelectVoice(voiceName); } catch { }
-            v.SetOutputToWaveStream(new StreamWrapper(outputStream));
-            v.SpeakSsml(ssml);
+            v.SetOutputToAudioStream(new StreamWrapper(outputStream), new SpeechAudioFormatInfo(22050, AudioBitsPerSample.Sixteen, AudioChannel.Mono));
+            if (text.StartsWith("<speak")) v.SpeakSsml(text);
+            else v.Speak(text);
         }
 
         static string ToJson(VoiceInfo vi)
