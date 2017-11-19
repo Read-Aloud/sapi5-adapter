@@ -1,9 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices.ComTypes;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Json;
+using System.Speech.Synthesis;
 
 namespace TextToSpeech
 {
@@ -14,12 +12,8 @@ namespace TextToSpeech
             var voiceName = args.Length > 0 ? args[0] : null;
             if (voiceName == "-l")
             {
-                var voices = new SpeechLib.SpVoice().GetVoices()
-                    .Cast<SpeechLib.ISpeechObjectToken>()
-                    .Select(token => new VoiceInfo(token))
-                    .ToArray();
-                new DataContractJsonSerializer(voices.GetType())
-                    .WriteObject(Console.OpenStandardOutput(), voices);
+                var voices = new SpeechSynthesizer().GetInstalledVoices();
+                Console.Write(string.Format("[{0}]", string.Join(",", voices.Select(voice => ToJson(voice.VoiceInfo)))));
             }
             else
             {
@@ -28,103 +22,85 @@ namespace TextToSpeech
             }
         }
 
-        static void Speak(string text, string voiceName, Stream outputStream)
+        static void Speak(string ssml, string voiceName, Stream outputStream)
         {
-            var ms = new SpeechLib.SpCustomStream();
-            ms.BaseStream = new Wrapper(outputStream);
-            var v = new SpeechLib.SpVoice();
-            v.Voice = FindVoice(v.GetVoices(), voiceName);
-            v.AudioOutputStream = ms;
-            v.Speak(text);
+            var v = new SpeechSynthesizer();
+            try { v.SelectVoice(voiceName); } catch { }
+            v.SetOutputToWaveStream(new StreamWrapper(outputStream));
+            v.SpeakSsml(ssml);
         }
 
-        static SpeechLib.SpObjectToken FindVoice(SpeechLib.ISpeechObjectTokens voices, string voiceName)
+        static string ToJson(VoiceInfo vi)
         {
-            for (var i = 0; i < voices.Count; i++) if (voices.Item(i).GetAttribute("Name") == voiceName) return voices.Item(i);
-            return null;
-        }
-    }
-
-    class Wrapper : IStream
-    {
-        readonly Stream stream;
-
-        public Wrapper(Stream stream)
-        {
-            this.stream = stream;
-        }
-
-        public void Clone(out IStream ppstm)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void Commit(int grfCommitFlags)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void CopyTo(IStream pstm, long cb, IntPtr pcbRead, IntPtr pcbWritten)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void LockRegion(long libOffset, long cb, int dwLockType)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void Read(byte[] pv, int cb, IntPtr pcbRead)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void Revert()
-        {
-            throw new NotImplementedException();
-        }
-
-        public void Seek(long dlibMove, int dwOrigin, IntPtr plibNewPosition)
-        {
-        }
-
-        public void SetSize(long libNewSize)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void Stat(out STATSTG pstatstg, int grfStatFlag)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void UnlockRegion(long libOffset, long cb, int dwLockType)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void Write(byte[] pv, int cb, IntPtr pcbWritten)
-        {
-            stream.Write(pv, 0, cb);
+            return "{" +
+                string.Format("\"Name\":\"{0}\",", vi.Name) +
+                string.Format("\"Gender\":\"{0}\",", vi.Gender.ToString()) +
+                string.Format("\"Age\":\"{0}\",", vi.Age.ToString()) +
+                string.Format("\"Vendor\":\"{0}\",", vi.AdditionalInfo["Vendor"]) +
+                string.Format("\"Language\":\"{0}\"", vi.Culture.Name) +
+                "}";
         }
     }
 
-    [DataContract]
-    class VoiceInfo
+    class StreamWrapper : Stream
     {
-        [DataMember] public string Gender;
-        [DataMember] public string Age;
-        [DataMember] public string Name;
-        [DataMember] public string Language;
-        [DataMember] public string Vendor;
+        readonly Stream baseStream;
 
-        public VoiceInfo(SpeechLib.ISpeechObjectToken token)
+        public StreamWrapper(Stream baseStream)
         {
-            Gender = token.GetAttribute("Gender");
-            Age = token.GetAttribute("Age");
-            Name = token.GetAttribute("Name");
-            Language = token.GetAttribute("Language");
-            Vendor = token.GetAttribute("Vendor");
+            this.baseStream = baseStream;
+        }
+
+        public override bool CanRead
+        {
+            get { throw new NotImplementedException(); }
+        }
+
+        public override bool CanSeek
+        {
+            get { throw new NotImplementedException(); }
+        }
+
+        public override bool CanWrite
+        {
+            get { throw new NotImplementedException(); }
+        }
+
+        public override long Length
+        {
+            get { throw new NotImplementedException(); }
+        }
+
+        public override long Position
+        {
+            get { return 0; }
+            set { throw new NotImplementedException(); }
+        }
+
+        public override void Flush()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            if (offset != 0 || origin != SeekOrigin.Begin) throw new NotImplementedException();
+            return 0;
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            baseStream.Write(buffer, offset, count);
         }
     }
 }
