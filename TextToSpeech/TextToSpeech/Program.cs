@@ -23,6 +23,7 @@ namespace TextToSpeech
             }
             else
             {
+                Console.InputEncoding = System.Text.Encoding.UTF8;
                 Speak(Console.In.ReadToEnd(), voiceName, Console.OpenStandardOutput());
             }
         }
