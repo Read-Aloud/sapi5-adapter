@@ -26,7 +26,14 @@ namespace TextToSpeech
         static void Speak(string text, string voiceName, Stream outputStream)
         {
             var v = new SpeechSynthesizer();
-            try { v.SelectVoice(voiceName); } catch { }
+            try
+            {
+                v.SelectVoice(voiceName);
+                if (voiceName.StartsWith("Vocalizer")) v.Volume = 50;
+            }
+            catch
+            {
+            }
             v.SetOutputToAudioStream(new StreamWrapper(outputStream), new SpeechAudioFormatInfo(22050, AudioBitsPerSample.Sixteen, AudioChannel.Mono));
             if (text.StartsWith("<speak")) v.SpeakSsml(text);
             else v.Speak(text);
