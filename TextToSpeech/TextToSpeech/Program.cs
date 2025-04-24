@@ -14,6 +14,7 @@ namespace TextToSpeech
             if (voiceName == "-l")
             {
                 var voices = new SpeechSynthesizer().GetInstalledVoices();
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
                 Console.Write(string.Format("[{0}]", string.Join(",", voices.Select(voice => ToJson(voice.VoiceInfo)))));
             }
             else
@@ -45,8 +46,7 @@ namespace TextToSpeech
                 string.Format("\"Name\":\"{0}\",", vi.Name) +
                 string.Format("\"Gender\":\"{0}\",", vi.Gender.ToString()) +
                 string.Format("\"Age\":\"{0}\",", vi.Age.ToString()) +
-                string.Format("\"Vendor\":\"{0}\",", vi.AdditionalInfo["Vendor"]) +
-                string.Format("\"Language\":\"{0}\"", vi.Culture.Name) +
+                string.Format("\"Language\":\"{0}\"", vi.Culture?.Name ?? "xx") +
                 "}";
         }
     }
