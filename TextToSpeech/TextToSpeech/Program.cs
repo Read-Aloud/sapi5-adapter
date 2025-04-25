@@ -10,106 +10,94 @@ namespace TextToSpeech
     {
         static void Main(string[] args)
         {
-            var voiceName = args.Length > 0 ? args[0] : null;
-            if (voiceName == "-l")
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+            string json = ReadAllInput();
+            var req = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(json);
+            switch (req.type.ToString())
             {
-                var voices = new SpeechSynthesizer().GetInstalledVoices();
-                Console.OutputEncoding = System.Text.Encoding.UTF8;
-                Console.Write(string.Format("[{0}]", string.Join(",", voices.Select(voice => ToJson(voice.VoiceInfo)))));
+                case "listVoices":
+                    var voices = new SpeechSynthesizer().GetInstalledVoices()
+                        .Select(v => new
+                        {
+                            v.VoiceInfo.Name,
+                            Gender = v.VoiceInfo.Gender.ToString(),
+                            Language = v.VoiceInfo.Culture?.Name ?? "xx"
+                        })
+                        .ToArray();
+                    Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(voices));
+                    break;
+
+                case "synthesize":
+                    var audioUrl = Synthesize(req.text.ToString(), req.voice.ToString());
+                    Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(new { audioUrl }));
+                    break;
             }
-            else
+        }
+
+        static string ReadAllInput()
+        {
+            using (var reader = new StreamReader(Console.OpenStandardInput(), System.Text.Encoding.UTF8))
             {
-                Console.InputEncoding = System.Text.Encoding.UTF8;
-                Speak(Console.In.ReadToEnd(), voiceName, Console.OpenStandardOutput());
+                return reader.ReadToEnd();
             }
         }
 
-        static void Speak(string text, string voiceName, Stream outputStream)
+        static string Synthesize(string text, string voiceName)
         {
-            var v = new SpeechSynthesizer();
-            try
+            using (var synthesizer = new SpeechSynthesizer())
+            using (var pcmStream = new MemoryStream())
             {
-                v.SelectVoice(voiceName);
-                if (voiceName.StartsWith("Vocalizer")) v.Volume = 50;
+                // Configure the SpeechSynthesizer
+                try
+                {
+                    synthesizer.SelectVoice(voiceName);
+                    if (voiceName.StartsWith("Vocalizer")) synthesizer.Volume = 50;
+                }
+                catch
+                {
+                    // Handle voice selection errors gracefully
+                }
+
+                // Set output to PCM stream
+                synthesizer.SetOutputToAudioStream(
+                    pcmStream,
+                    new SpeechAudioFormatInfo(22050, AudioBitsPerSample.Sixteen, AudioChannel.Mono)
+                );
+
+                // Speak the text
+                if (text.StartsWith("<speak"))
+                    synthesizer.SpeakSsml(text);
+                else
+                    synthesizer.Speak(text);
+
+                // Reset the stream position to the beginning
+                pcmStream.Position = 0;
+
+                // Convert PCM to MP3
+                using (var mp3Stream = new MemoryStream())
+                {
+                    using (var reader = new NAudio.Wave.RawSourceWaveStream(
+                        pcmStream,
+                        new NAudio.Wave.WaveFormat(22050, 16, 1)))
+                    using (var writer = new NAudio.Lame.LameMP3FileWriter(
+                        mp3Stream,
+                        reader.WaveFormat,
+                        NAudio.Lame.LAMEPreset.VBR_90))
+                    {
+                        reader.CopyTo(writer);
+                    }
+
+                    // Reset the MP3 stream position to the beginning
+                    mp3Stream.Position = 0;
+
+                    // Convert MP3 to base64
+                    var base64Audio = Convert.ToBase64String(mp3Stream.ToArray());
+
+                    // Return as audio data URL
+                    return $"data:audio/mp3;base64,{base64Audio}";
+                }
             }
-            catch
-            {
-            }
-            v.SetOutputToAudioStream(new StreamWrapper(outputStream), new SpeechAudioFormatInfo(22050, AudioBitsPerSample.Sixteen, AudioChannel.Mono));
-            if (text.StartsWith("<speak")) v.SpeakSsml(text);
-            else v.Speak(text);
-        }
-
-        static string ToJson(VoiceInfo vi)
-        {
-            return "{" +
-                string.Format("\"Name\":\"{0}\",", vi.Name) +
-                string.Format("\"Gender\":\"{0}\",", vi.Gender.ToString()) +
-                string.Format("\"Age\":\"{0}\",", vi.Age.ToString()) +
-                string.Format("\"Language\":\"{0}\"", vi.Culture?.Name ?? "xx") +
-                "}";
-        }
-    }
-
-    class StreamWrapper : Stream
-    {
-        readonly Stream baseStream;
-
-        public StreamWrapper(Stream baseStream)
-        {
-            this.baseStream = baseStream;
-        }
-
-        public override bool CanRead
-        {
-            get { throw new NotImplementedException(); }
-        }
-
-        public override bool CanSeek
-        {
-            get { throw new NotImplementedException(); }
-        }
-
-        public override bool CanWrite
-        {
-            get { throw new NotImplementedException(); }
-        }
-
-        public override long Length
-        {
-            get { throw new NotImplementedException(); }
-        }
-
-        public override long Position
-        {
-            get { return 0; }
-            set { throw new NotImplementedException(); }
-        }
-
-        public override void Flush()
-        {
-            throw new NotImplementedException();
-        }
-
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override long Seek(long offset, SeekOrigin origin)
-        {
-            if (offset != 0 || origin != SeekOrigin.Begin) throw new NotImplementedException();
-            return 0;
-        }
-
-        public override void SetLength(long value)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void Write(byte[] buffer, int offset, int count)
-        {
-            baseStream.Write(buffer, offset, count);
         }
     }
 }
