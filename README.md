@@ -1,9 +1,9 @@
 # SAPI5 Adapter
-A command-line .NET program to synthesize speech using Microsoft SAPI5 voices
+A .NET command-line program to synthesize speech using Microsoft SAPI5 voices
 
 ## API
 List available voices
-```
+```typescript
 function stdio(stdin: {
   "type":"listVoices"
 }): Array<{
@@ -14,7 +14,7 @@ function stdio(stdin: {
 ```
 
 Synthesize speech
-```
+```typescript
 function stdio(stdin: {
   "type": "synthesize"
   "text": string
