@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Speech.Synthesis;
 using System.Speech.AudioFormat;
+using Microsoft.Win32;
 
 namespace TextToSpeech
 {
@@ -13,15 +14,41 @@ namespace TextToSpeech
             var voiceName = args.Length > 0 ? args[0] : null;
             if (voiceName == "-l")
             {
+                // IMPORTANT: must target x64 (not "Any CPU") to see all voices
                 var voices = new SpeechSynthesizer().GetInstalledVoices();
                 Console.OutputEncoding = System.Text.Encoding.UTF8;
                 Console.Write(string.Format("[{0}]", string.Join(",", voices.Select(voice => ToJson(voice.VoiceInfo)))));
+            }
+            else if (voiceName == "-c")
+            {
+                using (var r1 = Registry.LocalMachine.OpenSubKey("SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens"))
+                using (var r2 = Registry.LocalMachine.OpenSubKey("SOFTWARE\\Microsoft\\Speech\\Voices\\Tokens", true))
+                using (var enumerator = r1.GetSubKeyNames().Except(r2.GetSubKeyNames(), StringComparer.OrdinalIgnoreCase).GetEnumerator())
+                    while (enumerator.MoveNext())
+                    {
+                        string current = enumerator.Current;
+                        Console.WriteLine(current);
+                        using (var src = r1.OpenSubKey(current))
+                        using (var dst = r2.CreateSubKey(current))
+                            CopyReg(src, dst);
+                    }
             }
             else
             {
                 Console.InputEncoding = System.Text.Encoding.UTF8;
                 Speak(Console.In.ReadToEnd(), voiceName, Console.OpenStandardOutput());
             }
+        }
+
+        static void CopyReg(RegistryKey src, RegistryKey dst)
+        {
+            foreach (string valueName in src.GetValueNames())
+                dst.SetValue(valueName, src.GetValue(valueName), src.GetValueKind(valueName));
+
+            foreach (string subKeyName in src.GetSubKeyNames())
+                using (var srcSub = src.OpenSubKey(subKeyName))
+                using (var dstSub = dst.CreateSubKey(subKeyName))
+                    CopyReg(srcSub, dstSub);
         }
 
         static void Speak(string text, string voiceName, Stream outputStream)
